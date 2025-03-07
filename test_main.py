@@ -20,6 +20,8 @@ def test_valid_training():
     assert "total_xp" in data
     assert "battles" in data
     assert "recoveries" in data
+    assert "pokemon_image" in data
+    assert "final_pokemon_image" in data
 
 def test_pokemon_not_found():
     response = client.post(
@@ -49,6 +51,7 @@ def test_evolution_occurs():
     data = response.json()
     assert response.status_code == 200
     assert data["final_pokemon"] != "bulbasaur"  # Deve ter evoluído
+    assert "final_pokemon_image" in data
 
 def test_no_evolution():
     response = client.post(
@@ -90,3 +93,17 @@ def test_invalid_intensity():
         }
     )
     assert response.status_code == 422  # FastAPI retorna 422 para erro de validação
+
+def test_health_check():
+    response = client.get("/health")
+    data = response.json()
+    assert response.status_code == 200
+    assert "status" in data
+
+def test_pokemon_image():
+    response = client.get("/pokemon/pikachu/image")
+    data = response.json()
+    assert response.status_code == 200
+    assert "pokemon" in data
+    assert "image_url" in data
+    assert "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" in data["image_url"]

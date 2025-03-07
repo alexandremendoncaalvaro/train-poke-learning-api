@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 import random
 import httpx
@@ -6,7 +7,24 @@ from functools import lru_cache
 
 app = FastAPI()
 
+@app.get("/")
+def root():
+    return RedirectResponse(url="/docs")
+
+@app.get("/health")
+def health_check():
+    try:
+        with httpx.Client(timeout=3) as client:
+            response = client.get(f"{POKEAPI_BASE_URL}pokemon/pikachu")
+            if response.status_code != 200:
+                return {"status": "unhealthy", "details": "Failed to reach PokéAPI"}
+    except Exception as e:
+        return {"status": "unhealthy", "details": str(e)}
+    
+    return {"status": "ok"}
+
 POKEAPI_BASE_URL = "https://pokeapi.co/api/v2/"
+SPRITE_BASE_URL = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/"
 
 # Modelo de entrada com restrições
 class TrainingData(BaseModel):
@@ -38,6 +56,13 @@ def get_pokemon_evolution(pokemon: str):
     if evolution_response.status_code != 200:
         return None
     return evolution_response.json()
+
+@app.get("/pokemon/{name}/image")
+def get_pokemon_image(name: str):
+    pokemon_data = get_pokemon_data(name)
+    if not pokemon_data:
+        return {"error": "Pokémon não encontrado."}
+    return {"pokemon": name, "image_url": f"{SPRITE_BASE_URL}{pokemon_data['id']}.png"}
 
 # Função para simular batalha
 def simulate_battle(pokemon: str, training_intensity: float):
@@ -92,9 +117,12 @@ def train_pokemon(data: TrainingData):
                     break
                 current_species = current_species.get("evolves_to", [None])[0]
     
+    evolved_pokemon_data = get_pokemon_data(current_pokemon)
     return {
         "pokemon": data.pokemon,
+        "pokemon_image": f"{SPRITE_BASE_URL}{pokemon_data['id']}.png",
         "final_pokemon": current_pokemon,
+        "final_pokemon_image": f"{SPRITE_BASE_URL}{evolved_pokemon_data['id']}.png" if evolved_pokemon_data else None,
         "total_xp": total_xp,
         "battles": battles_log,
         "recoveries": recoveries
