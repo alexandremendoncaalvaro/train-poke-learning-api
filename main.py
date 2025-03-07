@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 import random
 import httpx
+import base64
 from functools import lru_cache
 
 app = FastAPI()
@@ -62,7 +63,18 @@ def get_pokemon_image(name: str):
     pokemon_data = get_pokemon_data(name)
     if not pokemon_data:
         return {"error": "Pokémon não encontrado."}
-    return {"pokemon": name, "image_url": f"{SPRITE_BASE_URL}{pokemon_data['id']}.png"}
+    image_url = f"{SPRITE_BASE_URL}{pokemon_data['id']}.png"
+    
+    try:
+        with httpx.Client() as client:
+            image_response = client.get(image_url)
+            if image_response.status_code == 200:
+                image_base64 = base64.b64encode(image_response.content).decode("utf-8")
+                return {"pokemon": name, "image_base64": image_base64}
+    except Exception as e:
+        return {"error": f"Falha ao obter imagem: {str(e)}"}
+
+    return {"error": "Imagem não encontrada."}
 
 # Função para simular batalha
 def simulate_battle(pokemon: str, training_intensity: float):
@@ -120,9 +132,9 @@ def train_pokemon(data: TrainingData):
     evolved_pokemon_data = get_pokemon_data(current_pokemon)
     return {
         "pokemon": data.pokemon,
-        "pokemon_image": f"{SPRITE_BASE_URL}{pokemon_data['id']}.png",
+        "pokemon_image": get_pokemon_image(data.pokemon)["image_base64"],
         "final_pokemon": current_pokemon,
-        "final_pokemon_image": f"{SPRITE_BASE_URL}{evolved_pokemon_data['id']}.png" if evolved_pokemon_data else None,
+        "final_pokemon_image": get_pokemon_image(current_pokemon)["image_base64"] if evolved_pokemon_data else None,
         "total_xp": total_xp,
         "battles": battles_log,
         "recoveries": recoveries

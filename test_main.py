@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from main import app  # Certifique-se de importar corretamente sua aplicação
+import base64
 
 client = TestClient(app)
 
@@ -22,6 +23,8 @@ def test_valid_training():
     assert "recoveries" in data
     assert "pokemon_image" in data
     assert "final_pokemon_image" in data
+    assert isinstance(data["pokemon_image"], str)
+    assert isinstance(data["final_pokemon_image"], str)
 
 def test_pokemon_not_found():
     response = client.post(
@@ -52,6 +55,7 @@ def test_evolution_occurs():
     assert response.status_code == 200
     assert data["final_pokemon"] != "bulbasaur"  # Deve ter evoluído
     assert "final_pokemon_image" in data
+    assert isinstance(data["final_pokemon_image"], str)
 
 def test_no_evolution():
     response = client.post(
@@ -105,5 +109,12 @@ def test_pokemon_image():
     data = response.json()
     assert response.status_code == 200
     assert "pokemon" in data
-    assert "image_url" in data
-    assert "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/" in data["image_url"]
+    assert "image_base64" in data
+    assert isinstance(data["image_base64"], str)
+    
+    # Testa se a string base64 é válida
+    try:
+        base64.b64decode(data["image_base64"], validate=True)
+    except Exception:
+        assert False, "Invalid base64 encoding"
+        
