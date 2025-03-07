@@ -9,9 +9,11 @@ def test_valid_training():
         "/train/",
         json={
             "pokemon": "charmander",
-            "battles": 10,
-            "max_recoveries": 3,
-            "training_intensity": 0.8
+            "epochs": 5,
+            "batch_size": 3,
+            "learning_rate": 0.5,
+            "optimizer": "ofensivo",
+            "early_stopping": False
         }
     )
     data = response.json()
@@ -20,20 +22,19 @@ def test_valid_training():
     assert "final_pokemon" in data
     assert "total_xp" in data
     assert "battles" in data
-    assert "recoveries" in data
-    assert "pokemon_image" in data
-    assert "final_pokemon_image" in data
-    assert isinstance(data["pokemon_image"], str)
-    assert isinstance(data["final_pokemon_image"], str)
+    assert "optimizer" in data
+    assert "learning_rate" in data
 
 def test_pokemon_not_found():
     response = client.post(
         "/train/",
         json={
             "pokemon": "missingno",
-            "battles": 10,
-            "max_recoveries": 3,
-            "training_intensity": 0.8
+            "epochs": 5,
+            "batch_size": 3,
+            "learning_rate": 0.5,
+            "optimizer": "ofensivo",
+            "early_stopping": False
         }
     )
     data = response.json()
@@ -46,63 +47,79 @@ def test_evolution_occurs():
         "/train/",
         json={
             "pokemon": "bulbasaur",
-            "battles": 50,
-            "max_recoveries": 10,
-            "training_intensity": 1.0
+            "epochs": 20,
+            "batch_size": 5,
+            "learning_rate": 1.0,
+            "optimizer": "equilibrado",
+            "early_stopping": False
         }
     )
     data = response.json()
     assert response.status_code == 200
     assert data["final_pokemon"] != "bulbasaur"  # Deve ter evoluído
-    assert "final_pokemon_image" in data
-    assert isinstance(data["final_pokemon_image"], str)
 
 def test_no_evolution():
     response = client.post(
         "/train/",
         json={
             "pokemon": "bulbasaur",
-            "battles": 5,
-            "max_recoveries": 1,
-            "training_intensity": 0.5
+            "epochs": 2,
+            "batch_size": 2,
+            "learning_rate": 0.2,
+            "optimizer": "defensivo",
+            "early_stopping": False
         }
     )
     data = response.json()
     assert response.status_code == 200
     assert data["final_pokemon"] == "bulbasaur"  # Não evolui com poucas batalhas
 
-def test_max_recoveries_validation():
-    response = client.post(
-        "/train/",
-        json={
-            "pokemon": "squirtle",
-            "battles": 6,
-            "max_recoveries": 3,  # Máximo permitido seria 2
-            "training_intensity": 0.7
-        }
-    )
-    data = response.json()
-    assert response.status_code == 200
-    assert "error" in data
-    assert "max_recoveries" in data["error"]
-
-def test_invalid_intensity():
+def test_early_stopping():
     response = client.post(
         "/train/",
         json={
             "pokemon": "pikachu",
-            "battles": 10,
-            "max_recoveries": 3,
-            "training_intensity": 1.5  # Fora do limite permitido
+            "epochs": 50,
+            "batch_size": 10,
+            "learning_rate": 0.9,
+            "optimizer": "ofensivo",
+            "early_stopping": True
         }
     )
-    assert response.status_code == 422  # FastAPI retorna 422 para erro de validação
-
-def test_health_check():
-    response = client.get("/health")
     data = response.json()
     assert response.status_code == 200
-    assert "status" in data
+    assert "final_pokemon" in data
+    assert data["total_xp"] >= 500  # Early stopping deve ocorrer ao atingir o limite
+
+def test_invalid_parameters():
+    response = client.post(
+        "/train/",
+        json={
+            "pokemon": "charmander",
+            "epochs": 51,
+            "batch_size": 11,
+            "learning_rate": 0.009,
+            "optimizer": "aleatorio",
+            "early_stopping": False
+        }
+    )
+    assert response.status_code == 422  # Deve falhar pois ultrapassa limites
+
+def test_pokemon_without_evolution():
+    response = client.post(
+        "/train/",
+        json={
+            "pokemon": "ditto",
+            "epochs": 10,
+            "batch_size": 5,
+            "learning_rate": 0.7,
+            "optimizer": "equilibrado",
+            "early_stopping": False
+        }
+    )
+    data = response.json()
+    assert response.status_code == 200
+    assert data["final_pokemon"] == "ditto"  # Ditto não evolui
 
 def test_pokemon_image():
     response = client.get("/pokemon/pikachu/image")
@@ -117,4 +134,32 @@ def test_pokemon_image():
         base64.b64decode(data["image_base64"], validate=True)
     except Exception:
         assert False, "Invalid base64 encoding"
-        
+
+def test_pokemon_list_pagination():
+    response = client.get("/pokemon?limit=5&offset=10")
+    data = response.json()
+    assert response.status_code == 200
+    assert "pokemons" in data
+    assert len(data["pokemons"]) == 5
+
+def test_high_load_training():
+    response = client.post(
+        "/train/",
+        json={
+            "pokemon": "charizard",
+            "epochs": 50,
+            "batch_size": 10,
+            "learning_rate": 1.0,
+            "optimizer": "ofensivo",
+            "early_stopping": False
+        }
+    )
+    data = response.json()
+    assert response.status_code == 200
+    assert data["total_xp"] > 0  # Garante que a API aguenta alta carga
+
+def test_health_check():
+    response = client.get("/health")
+    data = response.json()
+    assert response.status_code == 200
+    assert "status" in data
