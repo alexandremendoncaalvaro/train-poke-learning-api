@@ -7,7 +7,12 @@ import httpx
 import base64
 from functools import lru_cache
 
-app = FastAPI()
+# Update FastAPI app with title and description for better documentation
+app = FastAPI(
+    title="PokeLearning Training API",
+    description="An API for training Pokémon using machine learning concepts",
+    version="1.0.0",
+)
 
 # Add CORS middleware
 app.add_middleware(
@@ -38,12 +43,49 @@ POKEAPI_BASE_URL = "https://pokeapi.co/api/v2/"
 SPRITE_BASE_URL = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/"
 
 class TrainingData(BaseModel):
-    pokemon: str
-    epochs: int = Field(ge=1, le=50)
-    batch_size: int = Field(ge=1, le=10)
-    learning_rate: float = Field(ge=0.01, le=1.0)
-    optimizer: str
-    early_stopping: bool = Field(default=False)
+    pokemon: str = Field(
+        description="Nome do Pokémon a ser treinado",
+        example="pikachu"
+    )
+    epochs: int = Field(
+        ge=1, 
+        le=50,
+        description="Número de épocas de treinamento (entre 1 e 50)",
+        example=5
+    )
+    batch_size: int = Field(
+        ge=1, 
+        le=10,
+        description="Tamanho do lote para treinamento (entre 1 e 10)",
+        example=3
+    )
+    learning_rate: float = Field(
+        ge=0.01, 
+        le=1.0,
+        description="Taxa de aprendizado para treinamento (entre 0.01 e 1.0)",
+        example=0.5
+    )
+    optimizer: str = Field(
+        description="Estratégia de treinamento (ex: ofensivo, defensivo, balanceado)",
+        example="ofensivo"
+    )
+    early_stopping: bool = Field(
+        default=False,
+        description="Parar o treinamento antecipadamente se o Pokémon evoluir",
+        example=False
+    )
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "pokemon": "pikachu",
+                "epochs": 5,
+                "batch_size": 3,
+                "learning_rate": 0.5,
+                "optimizer": "ofensivo",
+                "early_stopping": False
+            }
+        }
 
 @lru_cache(maxsize=50)
 def get_pokemon_data(pokemon: str):
